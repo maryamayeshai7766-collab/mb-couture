@@ -2,122 +2,42 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
+import { useRouter } from "next/navigation";
 
-type Dress = {
-  id: number;
-  name: string;
-  price: number;
-  image: string;
-  categories: string[];
-};
-
-const categories = [
-  "All Dresses",
-  "Wedding Wear",
-  "Maxis & Gowns",
-  "Formal Wear",
-  "Ready to Wear",
-  "Unstitched",
-  "Winter Collection",
-  "Summer Collection",
-  "Embroidered Wear",
-  "Festive Wear",
-];
-
-const prices = [
-  8000, 8500, 9000, 9500, 10000, 10500, 11000, 11500,
-  4000, 4500, 5000, 5500, 6000, 6500, 7000, 7500,
-  10000, 10500, 11000, 11500, 12000, 12500, 13000, 13500,
-  12000, 12500, 13000, 13500, 14000, 14500, 15000, 15500,
-  25000, 25500, 26000, 26500, 27000, 27500,
-  10000, 10500, 11000, 11500, 12000, 12500,
-];
-
-// Categories are based on the visible style and silhouette in each local photo.
-const productCategories: Record<number, string[]> = {
-  1: ["Ready to Wear", "Embroidered Wear", "Summer Collection", "Festive Wear"],
-  2: ["Ready to Wear", "Embroidered Wear", "Festive Wear"],
-  3: ["Ready to Wear", "Embroidered Wear"],
-  4: ["Formal Wear", "Embroidered Wear"],
-  5: ["Ready to Wear", "Embroidered Wear"],
-  6: ["Wedding Wear", "Formal Wear", "Embroidered Wear", "Maxis & Gowns", "Festive Wear"],
-  7: ["Wedding Wear", "Formal Wear", "Embroidered Wear", "Maxis & Gowns"],
-  8: ["Ready to Wear", "Embroidered Wear", "Summer Collection"],
-  9: ["Wedding Wear", "Formal Wear", "Embroidered Wear", "Maxis & Gowns"],
-  10: ["Ready to Wear", "Embroidered Wear"],
-  11: ["Ready to Wear", "Maxis & Gowns", "Summer Collection"],
-  12: ["Ready to Wear"],
-  13: ["Ready to Wear", "Embroidered Wear", "Summer Collection"],
-  14: ["Ready to Wear", "Summer Collection", "Festive Wear"],
-  15: ["Ready to Wear", "Summer Collection"],
-  16: ["Formal Wear", "Embroidered Wear", "Maxis & Gowns", "Festive Wear"],
-  17: ["Wedding Wear", "Formal Wear", "Embroidered Wear", "Maxis & Gowns", "Festive Wear"],
-  18: ["Wedding Wear", "Formal Wear", "Embroidered Wear", "Maxis & Gowns"],
-  19: ["Ready to Wear", "Embroidered Wear"],
-  20: ["Ready to Wear", "Embroidered Wear"],
-  21: ["Ready to Wear", "Embroidered Wear"],
-  22: ["Ready to Wear", "Embroidered Wear", "Winter Collection"],
-  23: ["Wedding Wear", "Formal Wear", "Embroidered Wear", "Maxis & Gowns", "Festive Wear"],
-  24: ["Wedding Wear", "Formal Wear", "Embroidered Wear", "Maxis & Gowns", "Festive Wear"],
-  25: ["Formal Wear", "Embroidered Wear"],
-  26: ["Ready to Wear", "Embroidered Wear", "Festive Wear"],
-  27: ["Formal Wear", "Embroidered Wear"],
-  28: ["Formal Wear", "Embroidered Wear", "Maxis & Gowns", "Festive Wear"],
-  29: ["Ready to Wear", "Embroidered Wear"],
-  30: ["Wedding Wear", "Formal Wear", "Embroidered Wear", "Maxis & Gowns"],
-  31: ["Ready to Wear", "Embroidered Wear", "Formal Wear"],
-  32: ["Ready to Wear", "Winter Collection"],
-  33: ["Ready to Wear", "Festive Wear"],
-  34: ["Ready to Wear", "Summer Collection"],
-  35: ["Ready to Wear", "Embroidered Wear", "Summer Collection"],
-  36: ["Ready to Wear"],
-  37: ["Ready to Wear", "Maxis & Gowns", "Summer Collection"],
-  38: ["Ready to Wear", "Embroidered Wear", "Summer Collection"],
-  39: ["Wedding Wear", "Formal Wear", "Embroidered Wear", "Maxis & Gowns", "Festive Wear"],
-  40: ["Ready to Wear", "Summer Collection", "Festive Wear"],
-  41: ["Ready to Wear", "Embroidered Wear", "Summer Collection"],
-  42: ["Ready to Wear", "Embroidered Wear", "Winter Collection"],
-  43: ["Ready to Wear", "Embroidered Wear", "Festive Wear"],
-  44: ["Ready to Wear", "Maxis & Gowns", "Summer Collection"],
-};
-
-function getCategories(id: number): string[] {
-  return productCategories[id] ?? ["Ready to Wear"];
-}
-
-// Kuch files ke actual names mein double dot hai.
-const specialImages: Record<number, string> = {
-  6: "/suit6..jpg",
-  7: "/suit7..jpg",
-  12: "/suit12..jpg",
-  13: "/suit13..jpg",
-  14: "/suit14..jpg",
-  15: "/suit15..jpg",
-  20: "/suit20..jpg",
-};
-
-const dresses: Dress[] = Array.from({ length: 44 }, (_, index) => {
-  const id = index + 1;
-
-  return {
-    id,
-    name: `MB Couture Design ${id}`,
-    price: prices[index],
-    image: specialImages[id] || `/suit${id}.jpg`,
-    categories: getCategories(id),
-  };
-});
+import { categories, dresses } from "../lib/catalog";
+import {
+  cartSnapshot,
+  subscribeCart,
+  writeCart,
+  writeCheckoutItems,
+} from "../lib/checkout-storage";
 
 const money = (price: number) =>
   `Rs. ${price.toLocaleString("en-PK")}`;
 
 export default function HomePage() {
+  const router = useRouter();
   const [activeCategory, setActiveCategory] =
     useState("All Dresses");
 
   const [search, setSearch] = useState("");
-  const [cart, setCart] = useState<Record<number, number>>({});
+  const cartJson = useSyncExternalStore(subscribeCart, cartSnapshot, () => "{}");
+  const cart = useMemo(() => {
+    try {
+      const parsed = JSON.parse(cartJson) as Record<number, number>;
+      return Object.fromEntries(
+        Object.entries(parsed).filter(
+          ([id, quantity]) =>
+            dresses.some((dress) => dress.id === Number(id)) &&
+            Number.isInteger(quantity) &&
+            quantity > 0
+        )
+      );
+    } catch {
+      return {};
+    }
+  }, [cartJson]);
   const [showCart, setShowCart] = useState(false);
 
   const filteredDresses = useMemo(() => {
@@ -151,52 +71,28 @@ export default function HomePage() {
   );
 
   function addToCart(id: number) {
-    setCart((previous) => ({
-      ...previous,
-      [id]: (previous[id] || 0) + 1,
-    }));
-  }
-
-  function removeFromCart(id: number) {
-    setCart((previous) => {
-      const updated = { ...previous };
-
-      if ((updated[id] || 0) <= 1) {
-        delete updated[id];
-      } else {
-        updated[id] -= 1;
-      }
-
-      return updated;
+    writeCart({
+      ...cart,
+      [id]: (cart[id] || 0) + 1,
     });
   }
 
-  function orderOnWhatsApp(dress?: Dress) {
-    const phone = "923001234567"; // Apna WhatsApp number yahan likhein.
+  function removeFromCart(id: number) {
+    const updated = { ...cart };
+    if ((updated[id] || 0) <= 1) delete updated[id];
+    else updated[id] -= 1;
+    writeCart(updated);
+  }
 
-    const message = dress
-      ? `Assalam-o-Alaikum MB Couture! I want to order ${dress.name}, ${money(dress.price)}. Please share availability and delivery details.`
-      : `Assalam-o-Alaikum MB Couture! My order:\n${dresses
-          .filter((item) => cart[item.id])
-          .map(
-            (item) =>
-              `${item.name} x ${cart[item.id]} = ${money(
-                item.price * cart[item.id]
-              )}`
-          )
-          .join("\n")}\nTotal: ${money(cartTotal)}\nPlease confirm availability and delivery details.`;
-
-    window.open(
-      `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
-      "_blank",
-      "noopener,noreferrer"
-    );
+  function beginCheckout(items: { productId: number; quantity: number }[]) {
+    writeCheckoutItems(items);
+    router.push("/checkout");
   }
 
   return (
     <main>
       <div className="announcement">
-        ELEGANCE IN EVERY THREAD — DISCOVER MB COUTURE
+        ELEGANCE IN EVERY THREAD â€” DISCOVER MB COUTURE
       </div>
 
       <header className="header">
@@ -217,7 +113,7 @@ export default function HomePage() {
           className="cart-button"
           onClick={() => setShowCart(!showCart)}
         >
-          🛍 Cart ({cartCount})
+          ðŸ› Cart ({cartCount})
         </button>
       </header>
 
@@ -229,7 +125,7 @@ export default function HomePage() {
               className="close-button"
               onClick={() => setShowCart(false)}
             >
-              ✕
+              âœ•
             </button>
           </div>
 
@@ -244,7 +140,7 @@ export default function HomePage() {
                     <div>
                       <strong>{dress.name}</strong>
                       <p>
-                        {money(dress.price)} × {cart[dress.id]}
+                        {money(dress.price)} Ã— {cart[dress.id]}
                       </p>
                     </div>
 
@@ -252,7 +148,7 @@ export default function HomePage() {
                       <button
                         onClick={() => removeFromCart(dress.id)}
                       >
-                        −
+                        âˆ’
                       </button>
                       <span>{cart[dress.id]}</span>
                       <button onClick={() => addToCart(dress.id)}>
@@ -268,9 +164,18 @@ export default function HomePage() {
 
               <button
                 className="primary-button full-button"
-                onClick={() => orderOnWhatsApp()}
+                onClick={() =>
+                  beginCheckout(
+                    dresses
+                      .filter((dress) => cart[dress.id])
+                      .map((dress) => ({
+                        productId: dress.id,
+                        quantity: cart[dress.id],
+                      }))
+                  )
+                }
               >
-                Order on WhatsApp
+                Proceed to Order Form
               </button>
             </>
           )}
@@ -295,7 +200,7 @@ export default function HomePage() {
           </p>
 
           <a className="primary-button" href="#collection">
-            EXPLORE COLLECTION ↗
+            EXPLORE COLLECTION â†—
           </a>
         </div>
 
@@ -336,7 +241,7 @@ export default function HomePage() {
               </span>
               <h3>{category}</h3>
               <span className="category-link">
-                EXPLORE CATEGORY ↗
+                EXPLORE CATEGORY â†—
               </span>
             </button>
           ))}
@@ -404,7 +309,7 @@ export default function HomePage() {
 
               <div className="product-info">
                 <div className="product-categories">
-                  {dress.categories.join(" · ")}
+                  {dress.categories.join(" Â· ")}
                 </div>
 
                 <h3>{dress.name}</h3>
@@ -421,9 +326,11 @@ export default function HomePage() {
 
                 <button
                   className="buy-button"
-                  onClick={() => orderOnWhatsApp(dress)}
+                  onClick={() =>
+                    beginCheckout([{ productId: dress.id, quantity: 1 }])
+                  }
                 >
-                  BUY IT NOW ↗
+                  BUY NOW
                 </button>
               </div>
             </article>
@@ -475,7 +382,7 @@ export default function HomePage() {
             confidence.
           </p>
           <a className="primary-button" href="#collection">
-            VIEW OUR COLLECTION ↗
+            VIEW OUR COLLECTION â†—
           </a>
         </div>
       </section>
@@ -513,7 +420,7 @@ export default function HomePage() {
         </div>
 
         <div className="copyright">
-          © 2026 MB COUTURE — THE DESIGNER SHOP
+          Â© 2026 MB COUTURE â€” THE DESIGNER SHOP
         </div>
       </footer>
 

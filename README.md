@@ -1,36 +1,39 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MB COUTURE
 
-## Getting Started
+Existing Next.js storefront for the MB COUTURE Eastern-wear catalogue.
 
-First, run the development server:
+## Local development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Order database and owner access
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Online order saving needs PostgreSQL. Create a managed PostgreSQL database with a provider such as Neon or Supabase, then run [`db/orders.sql`](db/orders.sql) once in that database's SQL editor.
 
-## Learn More
+Copy `.env.example` to `.env.local` and set:
 
-To learn more about Next.js, take a look at the following resources:
+- `DATABASE_URL`: the private PostgreSQL connection string.
+- `DELIVERY_CHARGE_PKR`: the store's flat delivery charge in PKR. Enter `0` only if delivery is free; the app does not assume a shipping fee.
+- `ADMIN_PASSWORD`: a long password for owner sign-in.
+- `SESSION_SECRET`: a random secret with at least 32 characters for signed owner and confirmation cookies.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Generate a suitable session secret with `node -e "console.log(require('node:crypto').randomBytes(48).toString('base64url'))"`. Keep `.env.local` private. Add these values to the Vercel project's Environment Variables for the environments you use. Do not add a `NEXT_PUBLIC_` prefix to secrets.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Customers submit orders at `/checkout`. A saved order has a private `/order-confirmation` page protected by a short-lived HTTP-only cookie; customer details are not put in the URL. The owner signs in at `/admin/login` and views customer orders at `/admin/orders`.
 
-## Deploy on Vercel
+The API validates product IDs, names, images and prices against `lib/catalog.ts`, calculates totals on the server, and records orders as `Pending`. A unique idempotency key prevents duplicate saves on retries. Requested sizes are subject to store confirmation; the app does not claim stock availability.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The `Unstitched` category is available but has no products assigned because the current photos show modeled garments and do not establish unstitched status.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Checks
+
+```bash
+npx tsc --noEmit
+npm run lint
+npm run build
+```
